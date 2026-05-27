@@ -232,15 +232,16 @@ tr:hover td{background:var(--surface2)}
   </div>
 
   <div class="card">
-    <div class="card-hdr"><div class="card-hdr-icon icon-blue">📷</div><span class="card-hdr-label">領収書をアップロード（画像）</span></div>
+    <div class="card-hdr"><div class="card-hdr-icon icon-blue">📷</div><span class="card-hdr-label">領収書をアップロード（画像・PDF）</span></div>
     <div class="card-body">
       <div class="dropzone">
-        <input type="file" id="imgInput" accept="image/*">
+        <input type="file" id="imgInput" accept="image/*,application/pdf" multiple>
         <div class="drop-icon">📷</div>
-        <p class="drop-main" id="dropMain">写真を選択またはドロップ</p>
-        <p class="drop-sub" id="dropSub">JPG・PNG・HEIC 対応</p>
+        <p class="drop-main" id="dropMain">写真・PDF を選択またはドロップ</p>
+        <p class="drop-sub" id="dropSub">JPG・PNG・HEIC・PDF 対応 / 複数同時OK</p>
       </div>
       <div class="scan-result" id="scanResult"></div>
+      <div id="batchResult" style="margin-top:10px;display:none;"></div>
     </div>
   </div>
 </div>
@@ -496,49 +497,112 @@ function deleteEntry(id) {
 }
 
 // ── IMAGE SCAN ──
+async function scanFile(file, apiKey) {
+  const isPDF = file.type === 'application/pdf';
+  const b64 = await new Promise((ok, ng) => { const r = new FileReader(); r.onload = ev => ok(ev.target.result.split(',')[1]); r.onerror = ng; r.readAsDataURL(file); });
+  const headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+  if (isPDF) headers['anthropic-beta'] = 'pdfs-2024-09-25';
+  const contentBlock = isPDF
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } };
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5', max_tokens: 600,
+      system: '領収書を解析してJSONのみ返せ。前置き不要。{"date":"YYYY-MM-DD","category":"旅費交通費|車両費|厚生費|消耗品費|接待交際費|通信費|租税公課|支払手数料|修繕費|会議費|水道光熱費|地代家賃|雑費","amount":0,"vendor":"","detail":""}',
+      messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: 'この領収書を解析してください' }] }]
+    })
+  });
+  const d = await resp.json();
+  if (d.error) throw new Error(d.error.message);
+  const text = d.content.map(b => b.text || '').join('');
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('解析失敗');
+  return JSON.parse(m[0]);
+}
+
 document.getElementById('imgInput').addEventListener('change', async e => {
-  const file = e.target.files[0]; if (!file) return;
+  const files = [...e.target.files]; if (!files.length) return;
   const apiKey = getApiKey();
   if (!apiKey) { openApiModal(); showToast('APIキーを設定してください'); return; }
-  showLoading('AIが解析中...');
-  const res = document.getElementById('scanResult');
-  res.style.display = 'block'; res.textContent = '解析中...'; res.style.color = 'var(--text2)';
-  try {
-    const b64 = await new Promise((ok, ng) => { const r = new FileReader(); r.onload = ev => ok(ev.target.result.split(',')[1]); r.onerror = ng; r.readAsDataURL(file); });
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5', max_tokens: 600,
-        system: '領収書を解析してJSONのみ返せ。前置き不要。{"date":"YYYY-MM-DD","category":"旅費交通費|車両費|厚生費|消耗品費|接待交際費|通信費|租税公課|支払手数料|修繕費|会議費|水道光熱費|地代家賃|雑費","amount":0,"vendor":"","detail":""}',
-        messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } }, { type: 'text', text: 'この領収書を解析してください' }] }]
-      })
-    });
-    const d = await resp.json();
-    const text = d.content.map(b => b.text || '').join('');
-    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-    if (parsed.date) { document.getElementById('i_date').value = parsed.date; document.getElementById('i_month').value = parseInt(parsed.date.split('-')[1]); }
-    if (parsed.category) {
-      const s = document.getElementById('i_cat');
-      let found = false;
-      for (let i = 0; i < s.options.length; i++) {
-        if (s.options[i].value === parsed.category) { s.selectedIndex = i; found = true; break; }
+
+  // 1ファイルの場合は従来通りフォームに反映
+  if (files.length === 1) {
+    const file = files[0];
+    showLoading('AIが解析中...');
+    const res = document.getElementById('scanResult');
+    res.style.display = 'block'; res.textContent = '解析中...'; res.style.color = 'var(--text2)';
+    document.getElementById('batchResult').style.display = 'none';
+    try {
+      const parsed = await scanFile(file, apiKey);
+      if (parsed.date) { document.getElementById('i_date').value = parsed.date; document.getElementById('i_month').value = parseInt(parsed.date.split('-')[1]); }
+      if (parsed.category) {
+        const s = document.getElementById('i_cat');
+        let found = false;
+        for (let i = 0; i < s.options.length; i++) { if (s.options[i].value === parsed.category) { s.selectedIndex = i; found = true; break; } }
+        if (!found) { s.value = '__custom__'; document.getElementById('i_cat_custom').value = parsed.category; document.getElementById('i_cat_custom').style.display = 'block'; }
       }
-      if (!found) {
-        s.value = '__custom__';
-        document.getElementById('i_cat_custom').value = parsed.category;
-        document.getElementById('i_cat_custom').style.display = 'block';
-      }
+      if (parsed.amount) document.getElementById('i_amt').value = parsed.amount;
+      if (parsed.vendor) document.getElementById('i_vendor').value = parsed.vendor;
+      if (parsed.detail) document.getElementById('i_detail').value = parsed.detail;
+      res.textContent = '読み取り完了。内容を確認して「登録する」を押してください。';
+      res.style.color = 'var(--accent)';
+    } catch (err) {
+      res.textContent = '読み取りに失敗しました: ' + err.message;
+      res.style.color = 'var(--danger)';
+    } finally { hideLoading(); e.target.value = ''; }
+    return;
+  }
+
+  // 複数ファイルの場合は一括処理して自動登録
+  document.getElementById('scanResult').style.display = 'none';
+  const batchDiv = document.getElementById('batchResult');
+  batchDiv.style.display = 'block';
+  batchDiv.innerHTML = `<div style="font-size:13px;color:var(--text2);margin-bottom:8px">0 / ${files.length} 件処理中...</div>`;
+
+  const office = document.getElementById('i_office').value === '__custom_office__'
+    ? document.getElementById('i_office_custom').value.trim()
+    : document.getElementById('i_office').value;
+
+  let success = 0, fail = 0;
+  const results = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    batchDiv.innerHTML = `<div style="font-size:13px;color:var(--text2);margin-bottom:8px">${i+1} / ${files.length} 件処理中... (${file.name})</div>`;
+    try {
+      const parsed = await scanFile(file, apiKey);
+      const month = parsed.date ? parseInt(parsed.date.split('-')[1]) : parseInt(document.getElementById('i_month').value);
+      const entry = {
+        id: Date.now() + i,
+        date: parsed.date || new Date().toISOString().split('T')[0],
+        month,
+        office,
+        category: parsed.category || '未分類',
+        amount: parsed.amount || 0,
+        vendor: parsed.vendor || '',
+        detail: parsed.detail || ''
+      };
+      if (!data[currentYear]) data[currentYear] = [];
+      data[currentYear].push(entry);
+      results.push({ name: file.name, ok: true, entry });
+      success++;
+    } catch (err) {
+      results.push({ name: file.name, ok: false, err: err.message });
+      fail++;
     }
-    if (parsed.amount) document.getElementById('i_amt').value = parsed.amount;
-    if (parsed.vendor) document.getElementById('i_vendor').value = parsed.vendor;
-    if (parsed.detail) document.getElementById('i_detail').value = parsed.detail;
-    res.textContent = '読み取り完了。内容を確認して「登録する」を押してください。';
-    res.style.color = 'var(--accent)';
-  } catch (err) {
-    res.textContent = '読み取りに失敗しました。手動で入力してください。';
-    res.style.color = 'var(--danger)';
-  } finally { hideLoading(); e.target.value = ''; }
+  }
+
+  save();
+  batchDiv.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:8px">✓ ${success}件登録完了${fail > 0 ? '　✕ ' + fail + '件失敗' : ''}</div>
+    ${results.map(r => `<div style="font-size:12px;padding:4px 0;border-bottom:0.5px solid var(--border);color:${r.ok ? 'var(--text)' : 'var(--danger)'}">
+      ${r.ok ? '✓' : '✕'} ${r.name}${r.ok ? '　' + (r.entry.vendor || '') + '　¥' + (r.entry.amount||0).toLocaleString() : '　' + r.err}
+    </div>`).join('')}
+  `;
+  showToast(success + '件を登録しました ✓');
+  e.target.value = '';
 });
 
 // ── LIST ──
