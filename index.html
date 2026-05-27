@@ -507,9 +507,9 @@ document.getElementById('imgInput').addEventListener('change', async e => {
     const b64 = await new Promise((ok, ng) => { const r = new FileReader(); r.onload = ev => ok(ev.target.result.split(',')[1]); r.onerror = ng; r.readAsDataURL(file); });
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514', max_tokens: 600,
+        model: 'claude-sonnet-4-5', max_tokens: 600,
         system: '領収書を解析してJSONのみ返せ。前置き不要。{"date":"YYYY-MM-DD","category":"旅費交通費|車両費|厚生費|消耗品費|接待交際費|通信費|租税公課|支払手数料|修繕費|会議費|水道光熱費|地代家賃|雑費","amount":0,"vendor":"","detail":""}',
         messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } }, { type: 'text', text: 'この領収書を解析してください' }] }]
       })
