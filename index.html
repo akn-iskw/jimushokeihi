@@ -191,6 +191,20 @@ tr:hover td{background:var(--surface2)}
 <!-- INPUT TAB -->
 <div id="tab-input" class="tab-panel on">
   <div class="card">
+    <div class="card-hdr"><div class="card-hdr-icon icon-blue">📷</div><span class="card-hdr-label">領収書をアップロード（画像・PDF）</span></div>
+    <div class="card-body">
+      <div class="dropzone">
+        <input type="file" id="imgInput" accept="image/*,application/pdf" multiple>
+        <div class="drop-icon">📷</div>
+        <p class="drop-main" id="dropMain">写真・PDF を選択またはドロップ</p>
+        <p class="drop-sub" id="dropSub">JPG・PNG・HEIC・PDF 対応 / 複数同時OK</p>
+      </div>
+      <div class="scan-result" id="scanResult"></div>
+      <div id="batchResult" style="margin-top:10px;display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-hdr"><div class="card-hdr-icon icon-blue">✏️</div><span class="card-hdr-label">手動入力</span></div>
     <div class="card-body">
       <div class="fgrid tri">
@@ -223,25 +237,11 @@ tr:hover td{background:var(--surface2)}
           </select>
           <input type="text" id="i_cat_custom" placeholder="科目名を入力" style="display:none;margin-top:6px">
         </div>
-        <div><div class="flabel">金額（円）</div><input type="number" id="i_amt" placeholder="0"></div>
+        <div><div class="flabel">金額（円）</div><input type="text" inputmode="numeric" id="i_amt" placeholder="0"></div>
       </div>
       <div class="fgrid full"><div><div class="flabel">取引先</div><input type="text" id="i_vendor" placeholder="例: 名古屋市交通局"></div></div>
       <div class="fgrid full"><div><div class="flabel">内容</div><input type="text" id="i_detail" placeholder="例: 駐車場代"></div></div>
       <button class="reg-btn" onclick="addEntry()">登録する</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-hdr"><div class="card-hdr-icon icon-blue">📷</div><span class="card-hdr-label">領収書をアップロード（画像・PDF）</span></div>
-    <div class="card-body">
-      <div class="dropzone">
-        <input type="file" id="imgInput" accept="image/*,application/pdf" multiple>
-        <div class="drop-icon">📷</div>
-        <p class="drop-main" id="dropMain">写真・PDF を選択またはドロップ</p>
-        <p class="drop-sub" id="dropSub">JPG・PNG・HEIC・PDF 対応 / 複数同時OK</p>
-      </div>
-      <div class="scan-result" id="scanResult"></div>
-      <div id="batchResult" style="margin-top:10px;display:none;"></div>
     </div>
   </div>
 </div>
@@ -286,6 +286,42 @@ tr:hover td{background:var(--surface2)}
   </div>
 </div>
 </div>
+
+  <!-- EDIT MODAL -->
+  <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:400;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border-radius:var(--radius);padding:24px;width:min(500px,94vw);max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+      <p style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:16px;">内容を編集</p>
+      <input type="hidden" id="edit_id">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div><p style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;">日付</p>
+          <input style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px" type="date" id="edit_date"></div>
+        <div><p style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;">月</p>
+          <select style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px" id="edit_month">
+            <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+            <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+            <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+            <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+          </select></div>
+        <div><p style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;">事業所</p>
+          <select style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px" id="edit_office"></select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div><p style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;">借方科目</p>
+          <select style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px" id="edit_category" onchange="if(this.value==='__custom__'){document.getElementById('edit_cat_custom').style.display='block'}else{document.getElementById('edit_cat_custom').style.display='none'}"></select>
+          <input style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;margin-top:6px;display:none" type="text" id="edit_cat_custom" placeholder="科目名を入力"></div>
+        <div><p style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;">金額（円）</p>
+          <input style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px" type="text" inputmode="numeric" id="edit_amount"></div>
+      </div>
+      <div style="margin-bottom:10px;"><p style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;">取引先</p>
+        <input style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px" type="text" id="edit_vendor"></div>
+      <div style="margin-bottom:16px;"><p style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;">内容</p>
+        <input style="width:100%;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px" type="text" id="edit_detail"></div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="saveEdit()" style="flex:1;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">保存する</button>
+        <button onclick="closeEditModal()" style="padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;cursor:pointer;font-family:inherit;color:var(--text);">キャンセル</button>
+      </div>
+    </div>
+  </div>
 
 <div class="toast" id="toast"></div>
 <div class="loading-ov" id="loadingOv"><div class="loading-box"><div class="spinner"></div><p class="loading-text" id="loadingText">処理中...</p></div></div>
@@ -380,6 +416,67 @@ let data = {};
 
 const SKEY = y => 'jimusho_' + y;
 const API_KEY = 'anthropic_api_key';
+
+// ── EDIT MODAL ──
+function openEditModal(id) {
+  const e = entries().find(e => e.id === id);
+  if (!e) return;
+  document.getElementById('edit_id').value = id;
+  document.getElementById('edit_date').value = e.date || '';
+  document.getElementById('edit_month').value = e.month || 1;
+  document.getElementById('edit_amount').value = e.amount || '';
+  document.getElementById('edit_vendor').value = e.vendor || '';
+  document.getElementById('edit_detail').value = e.detail || '';
+
+  // 事業所セット
+  const offSel = document.getElementById('edit_office');
+  const offices = getAllOffices();
+  offSel.innerHTML = offices.map(o => `<option value="${o}">${o}</option>`).join('');
+  if (offices.includes(e.office)) offSel.value = e.office;
+
+  // 科目セット
+  const catSel = document.getElementById('edit_category');
+  const cats = getAllCats();
+  catSel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('')
+    + '<option value="__custom__">その他（直接入力）</option>';
+  if (cats.includes(e.category)) {
+    catSel.value = e.category;
+    document.getElementById('edit_cat_custom').style.display = 'none';
+  } else {
+    catSel.value = '__custom__';
+    document.getElementById('edit_cat_custom').value = e.category || '';
+    document.getElementById('edit_cat_custom').style.display = 'block';
+  }
+
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+}
+
+function saveEdit() {
+  const id = parseInt(document.getElementById('edit_id').value);
+  const date = document.getElementById('edit_date').value;
+  const month = parseInt(document.getElementById('edit_month').value);
+  const office = document.getElementById('edit_office').value;
+  const catSel = document.getElementById('edit_category').value;
+  const category = catSel === '__custom__'
+    ? document.getElementById('edit_cat_custom').value.trim() || '未分類'
+    : catSel;
+  const amount = getAmtValue('edit_amount');
+  const vendor = document.getElementById('edit_vendor').value.trim();
+  const detail = document.getElementById('edit_detail').value.trim();
+  if (!amount) { showToast('金額を入力してください'); return; }
+  if (catSel === '__custom__' && category !== '未分類') addCustomCat(category);
+  const idx = (data[currentYear] || []).findIndex(e => e.id === id);
+  if (idx === -1) return;
+  data[currentYear][idx] = { ...data[currentYear][idx], date, month, office, category, amount, vendor, detail };
+  save();
+  closeEditModal();
+  renderList();
+  showToast('更新しました ✓');
+}
 
 // ── YEAR ──
 function openYearModal() {
@@ -477,7 +574,7 @@ function addEntry() {
   const catSel = document.getElementById('i_cat').value;
   const cat = catSel === '__custom__' ? document.getElementById('i_cat_custom').value.trim() || '未分類' : catSel;
   if (catSel === '__custom__' && cat && cat !== '未分類') addCustomCat(cat);
-  const amt = parseInt(document.getElementById('i_amt').value) || 0;
+  const amt = getAmtValue('i_amt');
   const vendor = document.getElementById('i_vendor').value.trim();
   const detail = document.getElementById('i_detail').value.trim();
   if (!amt) { showToast('金額を入力してください'); return; }
@@ -543,7 +640,7 @@ document.getElementById('imgInput').addEventListener('change', async e => {
         for (let i = 0; i < s.options.length; i++) { if (s.options[i].value === parsed.category) { s.selectedIndex = i; found = true; break; } }
         if (!found) { s.value = '__custom__'; document.getElementById('i_cat_custom').value = parsed.category; document.getElementById('i_cat_custom').style.display = 'block'; }
       }
-      if (parsed.amount) document.getElementById('i_amt').value = parsed.amount;
+      if (parsed.amount) document.getElementById('i_amt').value = parseInt(parsed.amount).toLocaleString('ja-JP');
       if (parsed.vendor) document.getElementById('i_vendor').value = parsed.vendor;
       if (parsed.detail) document.getElementById('i_detail').value = parsed.detail;
       res.textContent = '読み取り完了。内容を確認して「登録する」を押してください。';
@@ -624,7 +721,7 @@ function renderList() {
     <td><span class="badge ${BADGE[e.category] || 'b-other'}">${e.category || ''}</span></td>
     <td style="text-align:right;font-weight:600;font-size:12px">${fmt(e.amount)}</td>
     <td style="font-size:12px"><div style="font-weight:500">${e.vendor || ''}</div><div style="color:var(--text2)">${e.detail || ''}</div></td>
-    <td><button class="del-btn" onclick="deleteEntry(${e.id})">✕</button></td>
+    <td style="white-space:nowrap"><button class="del-btn" onclick="openEditModal(${e.id})" style="margin-right:2px;">✏️</button><button class="del-btn" onclick="deleteEntry(${e.id})">✕</button></td>
   </tr>`).join('');
 }
 
@@ -713,6 +810,9 @@ function showLoading(msg) { document.getElementById('loadingText').textContent =
 function hideLoading() { document.getElementById('loadingOv').classList.remove('show'); }
 
 // close modals on backdrop click
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editModal')) closeEditModal();
+});
 document.getElementById('yearModal').addEventListener('click', e => { if (e.target === document.getElementById('yearModal')) closeYearModal(); });
 document.getElementById('apiModal').addEventListener('click', e => { if (e.target === document.getElementById('apiModal')) closeApiModal(); });
 document.getElementById('apiInput').addEventListener('focus', e => { if (e.target.value === '（保存済み）') e.target.value = ''; });
@@ -752,9 +852,34 @@ function toggleCustomOffice(sel) {
   }
 }
 
+
+// ── 金額入力 3桁区切り ──
+function setupAmtInput(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', function() {
+    const raw = this.value.replace(/,/g, '').replace(/[^0-9]/g, '');
+    const num = parseInt(raw) || 0;
+    this.value = num === 0 ? '' : num.toLocaleString('ja-JP');
+  });
+  el.addEventListener('blur', function() {
+    const raw = this.value.replace(/,/g, '');
+    const num = parseInt(raw) || 0;
+    if (num > 0) this.value = num.toLocaleString('ja-JP');
+  });
+}
+
+function getAmtValue(id) {
+  const el = document.getElementById(id);
+  if (!el) return 0;
+  return parseInt(el.value.replace(/,/g, '')) || 0;
+}
+
 // ── INIT ──
 const today = new Date().toISOString().split('T')[0];
 document.getElementById('i_date').value = today;
+setupAmtInput('i_amt');
+setupAmtInput('edit_amount');
 document.getElementById('i_month').value = new Date().getMonth() + 1;
 updateApiBtn();
 rebuildCatSelects();
