@@ -769,8 +769,25 @@ function topCat(all) {
 
 // ── EXCEL EXPORT ──
 function exportExcel() {
-  const all = entries();
-  if (!all.length) { showToast('データがありません'); return; }
+  // 一覧タブの絞り込み状態を取得
+  const ofFilter = document.getElementById('fOffice').value;
+  const mfFilter = document.getElementById('fMonth').value;
+  const sfFilter = document.getElementById('fSearch').value.trim().toLowerCase();
+
+  const all = entries().filter(e => {
+    if (ofFilter && e.office !== ofFilter) return false;
+    if (mfFilter && e.month !== parseInt(mfFilter)) return false;
+    if (sfFilter && !((e.vendor || '').toLowerCase().includes(sfFilter) || (e.detail || '').toLowerCase().includes(sfFilter))) return false;
+    return true;
+  });
+
+  if (!all.length) { showToast('対象データがありません'); return; }
+
+  // ファイル名に絞り込み条件を反映
+  const monthNames = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const mSuffix = mfFilter ? monthNames[parseInt(mfFilter)] : '全月';
+  const oSuffix = ofFilter ? '_' + ofFilter : '';
+
   showLoading('Excel生成中...');
   try {
     const wb = XLSX.utils.book_new();
@@ -796,7 +813,7 @@ function exportExcel() {
       const sheetName = (g.office || '不明') + g.month + '月';
       XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
     });
-    XLSX.writeFile(wb, `事務所分：立替金清算_${currentYear}年分.xlsx`);
+    XLSX.writeFile(wb, `事務所分：立替金清算_${currentYear}年_${mSuffix}${oSuffix}.xlsx`);
     showToast('Excelを書き出しました ✓');
   } catch (err) { showToast('書き出しに失敗しました'); console.error(err); }
   finally { hideLoading(); }
